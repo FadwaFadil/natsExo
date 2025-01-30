@@ -10,6 +10,7 @@ import (
 	"nats_exercise/domain"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/fxamacker/cbor/v2"
@@ -56,13 +57,36 @@ func main() {
 		log.Fatal("Error opening KV store: ", err)
 	}
 
+	entry, err := kv.Get(ctx, "count")
+	var count int
+	if err != nil {
+		log.Println("No previous count found, initializing to 0")
+		count = 0
+	} else {
+		count, err = strconv.Atoi(string(entry.Value()))
+		if err != nil {
+			log.Println("Error converting count value, initializing to 0.")
+			count = 0
+		}
+	}
+
 	msgDep := &messageDep{
 		ctx: ctx,
 		kv:  kv,
 		nc:  nc,
+		count: count,
 	}
 
 	go msgDep.startConsumer("level.*", errChan)
+
+	defer func(){
+		_, err := msgDep.kv.Put(msgDep.ctx, "count", []byte(fmt.Sprintf("%d", msgDep.count)))
+	if err != nil {
+		log.Printf("🚨 Error storing the count value in KV store  %v:" ,err)
+	} else {
+		log.Println("Count value stored in KV store:", msgDep.count)
+	}
+	}()
 
 	select {
 	case err := <-errChan:
