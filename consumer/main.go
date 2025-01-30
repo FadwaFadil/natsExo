@@ -81,7 +81,7 @@ func (msgDep *messageDep) startConsumer(subject string, end chan error) {
 
 func (msgDep *messageDep) processMessage(m *nats.Msg) {
 	decoder := cbor.NewDecoder(bytes.NewReader(m.Data))
-	log.Printf("=============================== Received message from %s ===============================", m.Subject)
+	log.Printf("====================================== Received message from %s ======================================", m.Subject)
 
 	if m.Subject == "level.one" {
 		var msg domain.Lvl1Msg
@@ -89,10 +89,11 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 		if err != nil {
 			log.Printf("🚨Error unmarshalling message from %s: %v", m.Subject, err)
 		}
-		log.Printf("++++++++++++++++++++++++++++ level.one message : %v ++++++++++++++++++++++++++++", msg)
+		log.Printf("++++++++++++ Decoded msg : %v ++++++++++++ ", msg)
 		msgDep.ConvertAndStoreLvl1(msg)
 	} else {
 		for {
+
 			var msg map[string]any
 			err := decoder.Decode(&msg)
 			if err != nil {
@@ -102,7 +103,7 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 				log.Printf("🚨 Error unmarshalling message from %s: %v", m.Subject, err)
 				break
 			}
-			log.Printf("++++++++++++++++++++++++++++ %v message : %v ++++++++++++++++++++++++++++", m.Subject, msg)
+			log.Printf("++++++++++++ Decoded msg : %v ++++++++++++ ", msg)
 			msgDep.ConvertAndStoreLVL234(msg, m.Subject)
 		}
 	}
@@ -114,7 +115,7 @@ func (msgDep *messageDep) storeKV(key string, value []byte) {
 	if err != nil {
 		log.Printf("🚨 Error storing message in KV store  %s: %v", key, err)
 	} else {
-		log.Println("Message stored in KV store:", key, value)
+		log.Printf("Message stored in KV store: \n\tkey= %s: \n\tvalue= %v", key, value)
 	}
 }
 
