@@ -1,0 +1,36 @@
+version: '3'
+
+env:
+  PUBLISHER_PATH: ./publisher
+  PUBLISHER_BIN: publisher
+
+tasks:
+  nats:
+    desc: starts the NATS cluster
+    cmds:
+      - docker compose up -d --wait
+    status:
+      - docker inspect -f '{{.State.Running}}' nats_exercise-nats-1
+
+  consumer:
+    desc: starts the consumer (that's your part)
+    cmds:
+      - go run ./consumer
+    deps:
+      - nats
+
+  build-publisher:
+    cmds:
+      - go build -o "{{.PUBLISHER_BIN}}" "{{.PUBLISHER_PATH}}"
+    sources:
+      - "{{.PUBLISHER_PATH}}/*.go"
+    generates:
+      - "{{.PUBLISHER_PATH}}/{{.PUBLISHER_BIN}}"
+
+  publisher:
+    desc: starts the publisher
+    cmds:
+      - "{{.PUBLISHER_PATH}}/{{.PUBLISHER_BIN}}"
+    deps:
+      - nats
+      - build-publisher

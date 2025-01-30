@@ -1,0 +1,19 @@
+services:
+  nats:
+    image: nats
+    command: --config /nats_conf/nats.conf 
+    volumes:
+      - nats_data:/data
+      - ./nats.conf:/nats_conf/nats.conf
+    ports:
+      - 4222:4222
+      - 8222:8222
+      - 1883:1883
+
+
+volumes:
+  nats_data:
+
+networks:
+  web:
+    driver: bridge
