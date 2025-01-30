@@ -112,6 +112,7 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 		err := decoder.Decode(&msg)
 		if err != nil {
 			log.Printf("🚨Error unmarshalling message from %s: %v", m.Subject, err)
+			return
 		}
 		log.Printf("++++++++++++ Decoded msg : %v ++++++++++++ ", msg)
 		msgDep.ConvertAndStoreLvl1(msg)
