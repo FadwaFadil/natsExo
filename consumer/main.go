@@ -103,7 +103,7 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 				break
 			}
 			log.Printf("++++++++++++++++++++++++++++ %v message : %v ++++++++++++++++++++++++++++", m.Subject, msg)
-			msgDep.ConvertAndStore(msg, m.Subject)
+			msgDep.ConvertAndStoreLVL234(msg, m.Subject)
 		}
 	}
 }
@@ -125,7 +125,7 @@ func (msgDep *messageDep) ConvertAndStoreLvl1(msg domain.Lvl1Msg) {
 	msgDep.storeKV("level.one.hash."+fmt.Sprintf("%v", msgDep.count), msg.Hash)
 }
 
-func (msgDep *messageDep) ConvertAndStore(msg map[string]any, subject string) {
+func (msgDep *messageDep) ConvertAndStoreLVL234(msg map[string]any, subject string) {
 	msgDep.count++
 	for k, v := range msg {
 		key := subject + "." + k + "." + fmt.Sprintf("%v", msgDep.count)
