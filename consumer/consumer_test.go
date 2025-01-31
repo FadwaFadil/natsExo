@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"testing"
 
 	"nats_exercise/domain"
@@ -54,9 +55,17 @@ func TestProcessMessage(t *testing.T) {
 				}(),
 			},
 			setup: func(kv *KVStoreMock) {
-				kv.On("Put", mock.Anything, "level.one.title.1", []byte("Test Title")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.one.value.2", []byte("123")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.one.hash.3", []byte("testhash")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.one.title.")
+				}), []byte("Test Title")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.one.value.")
+				}), []byte("123")).Return(uint64(2), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.one.hash.")
+				}), []byte("testhash")).Return(uint64(3), nil)
 			},
 			expectedLogs: "Message stored in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
@@ -130,12 +139,29 @@ func TestProcessMessage(t *testing.T) {
 				}(),
 			},
 			setup: func(kv *KVStoreMock) {
-				kv.On("Put", mock.Anything, "level.three.Title.1", []byte("Test Title 1")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Value.2", []byte("123")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Hash.3", []byte("testhash1")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Title.4", []byte("Test Title 2")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Value.5", []byte("456")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Hash.6", []byte("testhash2")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Title.")
+				}), []byte("Test Title 1")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Value.")
+				}), []byte("123")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Hash.")
+				}), []byte("testhash1")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Title.")
+				}), []byte("Test Title 2")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Value.")
+				}), []byte("456")).Return(uint64(1), nil)
+				
+				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
+					return strings.HasPrefix(key, "level.three.Hash.")
+				}), []byte("testhash2")).Return(uint64(1), nil)
 			},
 			expectedLogs: "Message stored in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
