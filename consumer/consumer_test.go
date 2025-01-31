@@ -16,20 +16,16 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
+ 
 type KVStoreMock struct {
 	mock.Mock
 }
-
+ 
 func (c *KVStoreMock) Put(ctx context.Context, key string, value []byte) (uint64, error) {
 	args := c.Called(ctx, key, value)
 	return 1, args.Error(1)
 }
-
-type NATSClientMock struct {
-	mock.Mock
-}
-
+ 
 func TestProcessMessage(t *testing.T) {
 	testCases := []struct {
 		name         string

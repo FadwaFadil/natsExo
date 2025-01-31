@@ -16,15 +16,15 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
-
+ 
 type NATSClient interface {
 	Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error)
 }
-
+ 
 type KVStore interface {
 	Put(ctx context.Context, key string, value []byte) (uint64, error)
 }
-
+ 
 type messageDep struct {
 	ctx   context.Context
 	kv    KVStore
@@ -32,18 +32,19 @@ type messageDep struct {
 	count uint64
 }
 
-func main() {
+func main() { 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
+ 
 	nc, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer nc.Close()
-
+ 
 	errChan := make(chan error)
 
+	// Initialize JetStream 
 	js, err := jetstream.New(nc)
 	if err != nil {
 		log.Fatal(err)
@@ -51,25 +52,27 @@ func main() {
 
 	ctx := context.Background()
 
+	// Create or open a key-value store
 	kv, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: "level-messages"})
 	if err != nil {
 		log.Fatal("Error opening KV store: ", err)
 	}
 
+	// Get the status of the key-value store 
 	kvStatus, err := kv.Status(ctx)
 	if err != nil {
 		errChan <- err
 	}
-
+ 
 	msgDep := &messageDep{
 		ctx:   ctx,
 		kv:    kv,
 		nc:    nc,
-		count: kvStatus.Values() + 1, //current sequence
+		count: kvStatus.Values() + 1, // current sequence
 	}
-
+ 
 	go msgDep.startConsumer("level.*", errChan)
-
+ 
 	select {
 	case err := <-errChan:
 		log.Fatal(err)
@@ -77,7 +80,7 @@ func main() {
 		log.Println("Consumer exited successfully")
 	}
 }
-
+ 
 func (msgDep *messageDep) startConsumer(subject string, end chan error) {
 	_, err := msgDep.nc.Subscribe(subject, msgDep.processMessage)
 	if err != nil {
@@ -85,6 +88,7 @@ func (msgDep *messageDep) startConsumer(subject string, end chan error) {
 	}
 }
 
+// Process incoming NATS messages
 func (msgDep *messageDep) processMessage(m *nats.Msg) {
 	decoder := cbor.NewDecoder(bytes.NewReader(m.Data))
 	log.Printf("====================================== Received message from %s ======================================", m.Subject)
@@ -100,7 +104,6 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 		msgDep.ConvertAndStoreLvl1(msg)
 	} else {
 		for {
-
 			var msg map[string]any
 			err := decoder.Decode(&msg)
 			if err != nil {
@@ -116,6 +119,7 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 	}
 }
 
+// Store a key-value pair in the key-value store
 func (msgDep *messageDep) storeKV(key string, value []byte) {
 	_, err := msgDep.kv.Put(msgDep.ctx, key, value)
 	if err != nil {
@@ -126,12 +130,14 @@ func (msgDep *messageDep) storeKV(key string, value []byte) {
 	}
 }
 
+//  Convert and store level one messages
 func (msgDep *messageDep) ConvertAndStoreLvl1(msg domain.Lvl1Msg) {
 	msgDep.storeKV("level.one.title."+fmt.Sprintf("%v", msgDep.count), []byte(msg.Title))
 	msgDep.storeKV("level.one.value."+fmt.Sprintf("%v", msgDep.count), []byte(fmt.Sprintf("%d", msg.Value)))
 	msgDep.storeKV("level.one.hash."+fmt.Sprintf("%v", msgDep.count), msg.Hash)
 }
 
+// Convert and store level two, three, and four messages
 func (msgDep *messageDep) ConvertAndStoreLVL234(msg map[string]any, subject string) {
 	for k, v := range msg {
 		key := subject + "." + k + "." + fmt.Sprintf("%v", msgDep.count)
