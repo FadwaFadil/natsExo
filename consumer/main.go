@@ -65,7 +65,7 @@ func main() {
 		ctx:   ctx,
 		kv:    kv,
 		nc:    nc,
-		count: kvStatus.Values() + 1, //currennt sequence
+		count: kvStatus.Values() + 1, //current sequence
 	}
 
 	go msgDep.startConsumer("level.*", errChan)
