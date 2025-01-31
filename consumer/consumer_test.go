@@ -22,16 +22,11 @@ type KVStoreMock struct {
 
 func (c *KVStoreMock) Put(ctx context.Context, key string, value []byte) (uint64, error) {
 	args := c.Called(ctx, key, value)
-	return args.Get(0).(uint64), args.Error(1)
+	return 1, args.Error(1)
 }
 
 type NATSClientMock struct {
 	mock.Mock
-}
-
-func (n *NATSClientMock) Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error) {
-	args := n.Called(subject, cb)
-	return args.Get(0).(*nats.Subscription), args.Error(1)
 }
 
 func TestProcessMessage(t *testing.T) {
@@ -60,8 +55,8 @@ func TestProcessMessage(t *testing.T) {
 			},
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, "level.one.title.1", []byte("Test Title")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.one.value.1", []byte("123")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.one.hash.1", []byte("testhash")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.one.value.2", []byte("123")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.one.hash.3", []byte("testhash")).Return(uint64(1), nil)
 			},
 			expectedLogs: "Message stored in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
@@ -136,11 +131,11 @@ func TestProcessMessage(t *testing.T) {
 			},
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, "level.three.Title.1", []byte("Test Title 1")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Value.1", []byte("123")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Hash.1", []byte("testhash1")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Title.2", []byte("Test Title 2")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Value.2", []byte("456")).Return(uint64(1), nil)
-				kv.On("Put", mock.Anything, "level.three.Hash.2", []byte("testhash2")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.three.Value.2", []byte("123")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.three.Hash.3", []byte("testhash1")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.three.Title.4", []byte("Test Title 2")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.three.Value.5", []byte("456")).Return(uint64(1), nil)
+				kv.On("Put", mock.Anything, "level.three.Hash.6", []byte("testhash2")).Return(uint64(1), nil)
 			},
 			expectedLogs: "Message stored in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
@@ -154,8 +149,9 @@ func TestProcessMessage(t *testing.T) {
 			kVStoreMock := new(KVStoreMock)
 			tt.setup(kVStoreMock)
 			msgDep := &messageDep{
-				ctx: context.Background(),
-				kv:  kVStoreMock,
+				ctx:   context.Background(),
+				kv:    kVStoreMock,
+				count: 1,
 			}
 
 			var buf bytes.Buffer

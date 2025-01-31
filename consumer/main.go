@@ -10,7 +10,6 @@ import (
 	"nats_exercise/domain"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/fxamacker/cbor/v2"
@@ -30,7 +29,7 @@ type messageDep struct {
 	ctx   context.Context
 	kv    KVStore
 	nc    NATSClient
-	count int
+	count uint64
 }
 
 func main() {
@@ -45,54 +44,37 @@ func main() {
 
 	errChan := make(chan error)
 
-	ctx := context.Background()
-
 	js, err := jetstream.New(nc)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	ctx := context.Background()
 
 	kv, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{Bucket: "level-messages"})
 	if err != nil {
 		log.Fatal("Error opening KV store: ", err)
 	}
 
-	entry, err := kv.Get(ctx, "count")
-	var count int
+	kvStatus, err := kv.Status(ctx)
 	if err != nil {
-		log.Println("No previous count found, initializing to 0")
-		count = 0
-	} else {
-		count, err = strconv.Atoi(string(entry.Value()))
-		if err != nil {
-			log.Println("Error converting count value, initializing to 0.")
-			count = 0
-		}
+		errChan <- err
 	}
 
 	msgDep := &messageDep{
-		ctx: ctx,
-		kv:  kv,
-		nc:  nc,
-		count: count,
+		ctx:   ctx,
+		kv:    kv,
+		nc:    nc,
+		count: kvStatus.Values() + 1, //currennt sequence
 	}
 
 	go msgDep.startConsumer("level.*", errChan)
-
-	defer func(){
-		_, err := msgDep.kv.Put(msgDep.ctx, "count", []byte(fmt.Sprintf("%d", msgDep.count)))
-	if err != nil {
-		log.Printf("🚨 Error storing the count value in KV store  %v:" ,err)
-	} else {
-		log.Println("Count value stored in KV store:", msgDep.count)
-	}
-	}()
 
 	select {
 	case err := <-errChan:
 		log.Fatal(err)
 	case <-quit:
-		fmt.Println("Consumer exited successfully")
+		log.Println("Consumer exited successfully")
 	}
 }
 
@@ -135,24 +117,22 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 }
 
 func (msgDep *messageDep) storeKV(key string, value []byte) {
-
 	_, err := msgDep.kv.Put(msgDep.ctx, key, value)
 	if err != nil {
 		log.Printf("🚨 Error storing message in KV store  %s: %v", key, err)
 	} else {
 		log.Printf("Message stored in KV store: \n\tkey= %s: \n\tvalue= %v", key, value)
+		msgDep.count++
 	}
 }
 
 func (msgDep *messageDep) ConvertAndStoreLvl1(msg domain.Lvl1Msg) {
-	msgDep.count++
 	msgDep.storeKV("level.one.title."+fmt.Sprintf("%v", msgDep.count), []byte(msg.Title))
 	msgDep.storeKV("level.one.value."+fmt.Sprintf("%v", msgDep.count), []byte(fmt.Sprintf("%d", msg.Value)))
 	msgDep.storeKV("level.one.hash."+fmt.Sprintf("%v", msgDep.count), msg.Hash)
 }
 
 func (msgDep *messageDep) ConvertAndStoreLVL234(msg map[string]any, subject string) {
-	msgDep.count++
 	for k, v := range msg {
 		key := subject + "." + k + "." + fmt.Sprintf("%v", msgDep.count)
 		switch v := v.(type) {
