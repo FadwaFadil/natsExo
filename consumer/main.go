@@ -16,6 +16,12 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+var (
+	ErrUnmarshallingCBOR = errors.New("error unmarshalling message")
+	ErrStoringKV = errors.New("error storing message in KV store") 
+
+)
  
 type NATSClient interface {
 	Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error)
@@ -82,26 +88,34 @@ func main() {
 }
  
 func (msgDep *messageDep) startConsumer(subject string, end chan error) {
-	_, err := msgDep.nc.Subscribe(subject, msgDep.processMessage)
+	_, err := msgDep.nc.Subscribe(subject, func(msg *nats.Msg) {
+		err := msgDep.processMessage(msg)
+		if err != nil {
+			log.Printf("Error processing message: %v", err)
+		}
+	})
 	if err != nil {
 		end <- err
 	}
 }
 
 // Process incoming NATS messages
-func (msgDep *messageDep) processMessage(m *nats.Msg) {
+func (msgDep *messageDep) processMessage(m *nats.Msg) error {
 	decoder := cbor.NewDecoder(bytes.NewReader(m.Data))
 	log.Printf("====================================== Received message from %s ======================================", m.Subject)
 
 	if m.Subject == "level.one" {
 		var msg domain.Lvl1Msg
 		err := decoder.Decode(&msg)
-		if err != nil {
-			log.Printf("🚨Error unmarshalling message from %s: %v", m.Subject, err)
-			return
+		if err != nil { 
+			return fmt.Errorf("%w from %s: %v", ErrUnmarshallingCBOR, m.Subject, err)
+			
 		}
 		log.Printf("++++++++++++ Decoded msg : %v ++++++++++++ ", msg)
-		msgDep.ConvertAndStoreLvl1(msg)
+		err = msgDep.ConvertAndStoreLvl1(msg)
+		if err != nil {
+			return err
+		}
 	} else {
 		for {
 			var msg map[string]any
@@ -109,49 +123,71 @@ func (msgDep *messageDep) processMessage(m *nats.Msg) {
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					break
-				}
-				log.Printf("🚨 Error unmarshalling message from %s: %v", m.Subject, err)
-				break
+				} 
+				return fmt.Errorf("%w from %s: %v", ErrUnmarshallingCBOR, m.Subject, err)
+				
 			}
 			log.Printf("++++++++++++ Decoded msg : %v ++++++++++++ ", msg)
-			msgDep.ConvertAndStoreLVL234(msg, m.Subject)
+			err = msgDep.ConvertAndStoreLVL234(msg, m.Subject)
+			if err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
 
 // Store a key-value pair in the key-value store
-func (msgDep *messageDep) storeKV(key string, value []byte) {
+func (msgDep *messageDep) storeKV(key string, value []byte) error{
 	_, err := msgDep.kv.Put(msgDep.ctx, key, value)
 	if err != nil {
-		log.Printf("🚨 Error storing message in KV store  %s: %v", key, err)
+		return fmt.Errorf("%w %s: %v", ErrStoringKV, key, err)
 	} else {
 		log.Printf("Message stored in KV store: \n\tkey= %s: \n\tvalue= %v", key, value)
 		msgDep.count++
+		return nil
 	}
 }
 
 //  Convert and store level one messages
-func (msgDep *messageDep) ConvertAndStoreLvl1(msg domain.Lvl1Msg) {
-	msgDep.storeKV("level.one.title."+fmt.Sprintf("%v", msgDep.count), []byte(msg.Title))
-	msgDep.storeKV("level.one.value."+fmt.Sprintf("%v", msgDep.count), []byte(fmt.Sprintf("%d", msg.Value)))
-	msgDep.storeKV("level.one.hash."+fmt.Sprintf("%v", msgDep.count), msg.Hash)
+func (msgDep *messageDep) ConvertAndStoreLvl1(msg domain.Lvl1Msg) error {
+	err := msgDep.storeKV("level.one.title."+fmt.Sprintf("%v", msgDep.count), []byte(msg.Title))
+	if err != nil {
+		return err
+	}
+	err = msgDep.storeKV("level.one.value."+fmt.Sprintf("%v", msgDep.count), []byte(fmt.Sprintf("%d", msg.Value)))
+	if err != nil {
+		return err
+	}
+	err = msgDep.storeKV("level.one.hash."+fmt.Sprintf("%v", msgDep.count), msg.Hash)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Convert and store level two, three, and four messages
-func (msgDep *messageDep) ConvertAndStoreLVL234(msg map[string]any, subject string) {
+
+func (msgDep *messageDep) ConvertAndStoreLVL234(msg map[string]any, subject string) error {
 	for k, v := range msg {
 		key := subject + "." + k + "." + fmt.Sprintf("%v", msgDep.count)
+		var value []byte
 		switch v := v.(type) {
 		case string:
-			msgDep.storeKV(key, []byte(v))
+			value = []byte(v)
 		case int64, uint64:
-			msgDep.storeKV(key, []byte(fmt.Sprintf("%d", v)))
+			value = []byte(fmt.Sprintf("%d", v))
 		case float64:
-			msgDep.storeKV(key, []byte(fmt.Sprintf("%f", v)))
+			value = []byte(fmt.Sprintf("%f", v))
 		case []byte:
-			msgDep.storeKV(key, v)
+			value = v
 		default:
-			log.Printf("🚨 Unable to convert and store %T\n", v)
+			return fmt.Errorf("unable to convert and store %T", v)
+		}
+		if err := msgDep.storeKV(key, value); err != nil {
+			return err
 		}
 	}
+	return nil
 }

@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log"
 	"strings"
 	"testing"
 
@@ -14,25 +12,23 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
- 
+
 type KVStoreMock struct {
 	mock.Mock
 }
- 
+
 func (c *KVStoreMock) Put(ctx context.Context, key string, value []byte) (uint64, error) {
 	args := c.Called(ctx, key, value)
 	return 1, args.Error(1)
 }
- 
+
 func TestProcessMessage(t *testing.T) {
 	testCases := []struct {
-		name         string
-		msg          *nats.Msg
-		setup        func(*KVStoreMock)
-		expectedLogs string
-		assertion    assert.ErrorAssertionFunc
+		name  string
+		msg   *nats.Msg
+		setup func(*KVStoreMock)
+		assertion assert.ErrorAssertionFunc
 	}{
 		{
 			name: "Valid Level 1 message",
@@ -54,16 +50,16 @@ func TestProcessMessage(t *testing.T) {
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.one.title.")
 				}), []byte("Test Title")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.one.value.")
 				}), []byte("123")).Return(uint64(2), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.one.hash.")
 				}), []byte("testhash")).Return(uint64(3), nil)
 			},
-			expectedLogs: "Message stored in KV store",
+
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
 				return assert.Nil(tt, err)
 			},
@@ -77,9 +73,8 @@ func TestProcessMessage(t *testing.T) {
 			setup: func(kv *KVStoreMock) {
 				kv.AssertNotCalled(t, "Put")
 			},
-			expectedLogs: "Error unmarshalling message",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
-				return assert.NotNil(tt, err)
+				return assert.ErrorIs(tt, err, ErrUnmarshallingCBOR)
 			},
 		},
 		{
@@ -101,9 +96,8 @@ func TestProcessMessage(t *testing.T) {
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(uint64(0), errors.New("failed to store"))
 			},
-			expectedLogs: "Error storing message in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
-				return assert.NotNil(tt, err)
+				return assert.ErrorIs(tt, err, ErrStoringKV)
 			},
 		},
 		{
@@ -138,28 +132,28 @@ func TestProcessMessage(t *testing.T) {
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Title.")
 				}), []byte("Test Title 1")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Value.")
 				}), []byte("123")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Hash.")
 				}), []byte("testhash1")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Title.")
 				}), []byte("Test Title 2")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Value.")
 				}), []byte("456")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
 					return strings.HasPrefix(key, "level.three.Hash.")
 				}), []byte("testhash2")).Return(uint64(1), nil)
 			},
-			expectedLogs: "Message stored in KV store",
+
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
 				return assert.Nil(tt, err)
 			},
@@ -176,14 +170,10 @@ func TestProcessMessage(t *testing.T) {
 				count: 1,
 			}
 
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer log.SetOutput(nil)
-
-			msgDep.processMessage(tt.msg)
+			err := msgDep.processMessage(tt.msg)
 
 			kVStoreMock.AssertExpectations(t)
-			require.Contains(t, buf.String(), tt.expectedLogs)
+			tt.assertion(t, err)
 		})
 	}
 }
