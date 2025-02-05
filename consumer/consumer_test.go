@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"log"
-	"strings"
+	"regexp"
 	"testing"
 
 	"nats_exercise/domain"
@@ -16,16 +16,16 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
- 
+
 type KVStoreMock struct {
 	mock.Mock
 }
- 
+
 func (c *KVStoreMock) Put(ctx context.Context, key string, value []byte) (uint64, error) {
 	args := c.Called(ctx, key, value)
-	return 1, args.Error(1)
+	return args.Get(0).(uint64), args.Error(1)
 }
- 
+
 func TestProcessMessage(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -51,17 +51,11 @@ func TestProcessMessage(t *testing.T) {
 				}(),
 			},
 			setup: func(kv *KVStoreMock) {
-				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.one.title.")
-				}), []byte("Test Title")).Return(uint64(1), nil)
-				
-				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.one.value.")
-				}), []byte("123")).Return(uint64(2), nil)
-				
-				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.one.hash.")
-				}), []byte("testhash")).Return(uint64(3), nil)
+				kv.On("Put", mock.Anything, "level.one.title.1", []byte("Test Title")).Return(uint64(1), nil)
+
+				kv.On("Put", mock.Anything, "level.one.value.2", []byte("123")).Return(uint64(1), nil)
+
+				kv.On("Put", mock.Anything, "level.one.hash.3", []byte("testhash")).Return(uint64(1), nil)
 			},
 			expectedLogs: "Message stored in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
@@ -136,27 +130,33 @@ func TestProcessMessage(t *testing.T) {
 			},
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Title.")
+					matched, _ := regexp.MatchString(`^level\.three\.Title\.[1-6]$`, key)
+					return matched
 				}), []byte("Test Title 1")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Value.")
+					matched, _ := regexp.MatchString(`^level\.three\.Value\.[1-6]$`, key)
+					return matched
 				}), []byte("123")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Hash.")
+					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[1-6]$`, key)
+					return matched
 				}), []byte("testhash1")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Title.")
+					matched, _ := regexp.MatchString(`^level\.three\.Title\.[1-6]$`, key)
+					return matched
 				}), []byte("Test Title 2")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Value.")
+					matched, _ := regexp.MatchString(`^level\.three\.Value\.[1-6]$`, key)
+					return matched
 				}), []byte("456")).Return(uint64(1), nil)
-				
+
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					return strings.HasPrefix(key, "level.three.Hash.")
+					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[1-6]$`, key)
+					return matched
 				}), []byte("testhash2")).Return(uint64(1), nil)
 			},
 			expectedLogs: "Message stored in KV store",
