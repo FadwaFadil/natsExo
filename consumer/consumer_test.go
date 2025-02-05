@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"log"
 	"regexp"
 	"testing"
 
@@ -14,7 +12,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type KVStoreMock struct {
@@ -57,7 +54,7 @@ func TestProcessMessage(t *testing.T) {
 
 				kv.On("Put", mock.Anything, "level.one.hash.3", []byte("testhash")).Return(uint64(1), nil)
 			},
-			expectedLogs: "Message stored in KV store",
+
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
 				return assert.Nil(tt, err)
 			},
@@ -71,9 +68,8 @@ func TestProcessMessage(t *testing.T) {
 			setup: func(kv *KVStoreMock) {
 				kv.AssertNotCalled(t, "Put")
 			},
-			expectedLogs: "Error unmarshalling message",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
-				return assert.NotNil(tt, err)
+				return assert.ErrorIs(tt, err, ErrUnmarshallingCBOR)
 			},
 		},
 		{
@@ -95,9 +91,8 @@ func TestProcessMessage(t *testing.T) {
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(uint64(0), errors.New("failed to store"))
 			},
-			expectedLogs: "Error storing message in KV store",
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
-				return assert.NotNil(tt, err)
+				return assert.ErrorIs(tt, err, ErrStoringKV)
 			},
 		},
 		{
@@ -159,7 +154,7 @@ func TestProcessMessage(t *testing.T) {
 					return matched
 				}), []byte("testhash2")).Return(uint64(1), nil)
 			},
-			expectedLogs: "Message stored in KV store",
+
 			assertion: func(tt assert.TestingT, err error, i ...interface{}) bool {
 				return assert.Nil(tt, err)
 			},
@@ -176,14 +171,10 @@ func TestProcessMessage(t *testing.T) {
 				count: 1,
 			}
 
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer log.SetOutput(nil)
-
-			msgDep.processMessage(tt.msg)
+			err := msgDep.processMessage(tt.msg)
 
 			kVStoreMock.AssertExpectations(t)
-			require.Contains(t, buf.String(), tt.expectedLogs)
+			tt.assertion(t, err)
 		})
 	}
 }
