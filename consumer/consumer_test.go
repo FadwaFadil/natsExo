@@ -125,32 +125,32 @@ func TestProcessMessage(t *testing.T) {
 			},
 			setup: func(kv *KVStoreMock) {
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Title\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Title\.[1-3]$`, key)
 					return matched
 				}), []byte("Test Title 1")).Return(uint64(1), nil)
 
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Value\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Value\.[1-3]$`, key)
 					return matched
 				}), []byte("123")).Return(uint64(1), nil)
 
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[1-3]$`, key)
 					return matched
 				}), []byte("testhash1")).Return(uint64(1), nil)
 
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Title\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Title\.[4-6]$`, key)
 					return matched
 				}), []byte("Test Title 2")).Return(uint64(1), nil)
 
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Value\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Value\.[4-6]$`, key)
 					return matched
 				}), []byte("456")).Return(uint64(1), nil)
 
 				kv.On("Put", mock.Anything, mock.MatchedBy(func(key string) bool {
-					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[1-6]$`, key)
+					matched, _ := regexp.MatchString(`^level\.three\.Hash\.[4-6]$`, key)
 					return matched
 				}), []byte("testhash2")).Return(uint64(1), nil)
 			},
